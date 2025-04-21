@@ -65,7 +65,7 @@ export class ProfileSearchService {
 
   ) {
     this.openAIKey = this.configService.get<any>('OPEN_AI_KEY');
-    this.googleAIkey = this.configService.get<any>('')
+    this.googleAIkey = this.configService.get<any>('GOOGLE_AI_KEY')
     this.openai = new OpenAI({
       apiKey: this.openAIKey
     });

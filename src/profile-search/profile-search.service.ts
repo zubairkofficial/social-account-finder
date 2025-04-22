@@ -8,9 +8,7 @@ import { RunnableSequence } from '@langchain/core/runnables';
 import { z } from 'zod';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from "openai";
-import { ImageAnnotatorClient } from '@google-cloud/vision';
-import { GoogleGenAI, createUserContent, createPartFromUri } from "@google/genai";
-
+import { zodResponseFormat } from "openai/helpers/zod";
 
 export enum ConfidenceCount {
   FULL_NAME = 50,
@@ -58,7 +56,7 @@ export class ProfileSearchService {
   private readonly openai: OpenAI;
   private openAIKey: string;
   private googleAIkey: string;
-  private ai: GoogleGenAI;
+  private rapidAPIkey: string;
 
   constructor(
     private configService: ConfigService,
@@ -66,10 +64,10 @@ export class ProfileSearchService {
   ) {
     this.openAIKey = this.configService.get<any>('OPEN_AI_KEY');
     this.googleAIkey = this.configService.get<any>('GOOGLE_AI_KEY')
+    this.rapidAPIkey = this.configService.get<any>('RAPID_API_KEY')
     this.openai = new OpenAI({
       apiKey: this.openAIKey
     });
-    this.ai = new GoogleGenAI({ apiKey: this.googleAIkey }); // Replace with your actual API key
 
   }
 
@@ -158,7 +156,6 @@ export class ProfileSearchService {
 
 
   async getLinkedProfile(profileSearchDto: ProfileSearchDto): Promise<ExtendedResponseType> {
-    console.log("prpfile data", profileSearchDto)
     if (this.openAIKey === "" || !this.openAIKey) {
       throw new HttpException("No api key is found", HttpStatus.BAD_REQUEST)
     }
@@ -193,11 +190,12 @@ export class ProfileSearchService {
         method: 'POST',
         url: 'https://linkedin-data-scraper.p.rapidapi.com/email_to_linkedin_profile',
         headers: {
-          'x-rapidapi-key': '7ef33e273amshb4bf6014a9e19cfp11ed12jsnf3c97a6ab6ae',
+          'x-rapidapi-key': this.rapidAPIkey,
           'x-rapidapi-host': 'linkedin-data-scraper.p.rapidapi.com',
           'Content-Type': 'application/json',
         },
         data: {
+
           email: profileSearchDto.email,
         },
       };
@@ -258,13 +256,12 @@ export class ProfileSearchService {
     }
 
     if (profileSearchDto.name && !email_linked_data.email_matched) {
-      console.log("why not coming heer?")
 
       const options = {
         method: 'POST',
         url: 'https://linkedin-data-scraper.p.rapidapi.com/search_person',
         headers: {
-          'x-rapidapi-key': '7ef33e273amshb4bf6014a9e19cfp11ed12jsnf3c97a6ab6ae',
+          'x-rapidapi-key': this.rapidAPIkey,
           'x-rapidapi-host': 'linkedin-data-scraper.p.rapidapi.com',
           'Content-Type': 'application/json',
         },
@@ -325,7 +322,7 @@ export class ProfileSearchService {
                 method: 'POST',
                 url: 'https://linkedin-data-scraper.p.rapidapi.com/person',
                 headers: {
-                  'x-rapidapi-key': '7ef33e273amshb4bf6014a9e19cfp11ed12jsnf3c97a6ab6ae',
+                  'x-rapidapi-key': this.rapidAPIkey,
                   'x-rapidapi-host': 'linkedin-data-scraper.p.rapidapi.com',
                   'Content-Type': 'application/json'
                 },
@@ -409,11 +406,11 @@ export class ProfileSearchService {
       url: 'https://google-search74.p.rapidapi.com/',
       params: {
         query: `${personData.name} site:instagram.com`,
-        limit: '10',
+        limit: '15',
         related_keywords: `${personData.address?.city}, ${personData.address?.state}, ${personData.address?.country}, ${personData.company}, ${personData.email}`,
       },
       headers: {
-        'x-rapidapi-key': '50c23a771dmsh5a551b9a3529d2bp1aa0bdjsn834acd34db7d',
+        'x-rapidapi-key': this.rapidAPIkey,
         'x-rapidapi-host': 'google-search74.p.rapidapi.com',
       },
     };
@@ -436,7 +433,7 @@ export class ProfileSearchService {
         username: username,
       },
       headers: {
-        'x-rapidapi-key': '50c23a771dmsh5a551b9a3529d2bp1aa0bdjsn834acd34db7d',
+        'x-rapidapi-key': this.rapidAPIkey,
         'x-rapidapi-host': 'instagram-premium-api-2023.p.rapidapi.com',
       },
     };
@@ -497,44 +494,45 @@ export class ProfileSearchService {
       return 0
     }
     try {
-      // Fetch the images and convert to Base64 (as a more robust approach)
-      const image1Response = await fetch(imageUrl1);
-      const image2Response = await fetch(imageUrl2);
 
-      const image1Buffer = await image1Response.arrayBuffer();
-      const image2Buffer = await image2Response.arrayBuffer();
-
-      const base64Image1 = Buffer.from(image1Buffer).toString('base64');
-      const base64Image2 = Buffer.from(image2Buffer).toString('base64');
-
-      // Send the images to the GenAI API for face detection and comparison
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-2.0-flash', // Use the appropriate model for face detection/comparison
-        contents: createUserContent([
+      // Compare these two images of people and identify if they are identical. just return match percentage integer from 0 to 100 and nothing else
+      const response = await this.openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        response_format: zodResponseFormat(z.object({
+          photo_match_confidence: z.number()
+        }), 'confidence_format'),
+        messages: [
           {
-            inlineData: {
-              mimeType: 'image/jpeg', // Adjust mime type as necessary
-              data: base64Image1,
-            },
+            role: "user",
+            content: [
+              { type: "text", text: "Compare these two images of people and identify if they are identical. just return match percentage integer from 0 to 100 in JSON format {{photo_match_confidence: number}}" },
+              {
+                type: "image_url",
+                image_url: {
+                  "url": imageUrl1
+                },
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  "url": imageUrl2
+                },
+              }
+            ],
           },
-          {
-            inlineData: {
-              mimeType: 'image/jpeg', // Adjust mime type as necessary
-              data: base64Image2,
-            },
-          },
-          { text: 'Compare these two images of people and identify if they are identical. just return match percentage integer from 0 to 100 and nothing else' },
-        ]),
+        ],
+        max_tokens: 300,
       });
 
       // Assuming response.text will give a comparison result
-      const comparisonResult: any = response.text;
-      console.log(comparisonResult); // Log the result of comparison
+      const comparisonResult: any = response?.choices[0]?.message?.content;
+
+      const comparisonResultJSON = JSON.parse(comparisonResult)
 
       // Basic threshold to decide if the images are identical or not
       const confidenceThreshold = 0.7; // Adjust this threshold based on the API response
-      if (comparisonResult) {
-        return Number(comparisonResult); // Images are likely identical based on the result
+      if (comparisonResultJSON) {
+        return comparisonResultJSON.photo_match_confidence; // Images are likely identical based on the result
       } else {
         return 0;
       }
@@ -645,13 +643,10 @@ export class ProfileSearchService {
       }, new Map()).values()
     );
 
-    console.log("google result", uniqueData)
 
-    console.log("google result length", googleResults?.results?.length);
 
     // Populate results array
     for (const result of uniqueData) {
-      console.log("loop");
 
       const instagramUrl = result?.url;
       const username = this.extractUsernameFromUrl(instagramUrl);
@@ -688,22 +683,11 @@ export class ProfileSearchService {
       results.push(resultObject);
     }
 
-    console.log("all results", results)
-    // Step 1: Find the highest confidence score
-    // const highestConfidence = Math.max(...results.map(item => item.confidence));
-
-    // Step 2: Filter out the objects with the highest confidence
-    // const highestConfidenceResults = results.filter(item => item.confidence === highestConfidence);
-
-    // Step 3: Loop over highestConfidenceResults and perform photo matching
-
-
-    // Loop through highest confidence results and evaluate photo matching
+   
     for (const result of results) {
       try {
         const profilePicUrl = result.instaPhotoURL;
         const photoMatchConfidence = await this.compareImages(profilePicUrl, linkedPhotoURL);
-        console.log("photo match", photoMatchConfidence, result.instagramURL)
 
         result.photo_match_confidence_with_linkedIn = photoMatchConfidence
       } catch (error) {
@@ -723,9 +707,7 @@ export class ProfileSearchService {
 
   async getUserSocial(profileSearchDto: ProfileSearchDto) {
     const linkedData: ExtendedResponseType = await this.getLinkedProfile(profileSearchDto)
-    console.log("linked in Data", linkedData)
     const instaData = await this.getFinalResult(profileSearchDto, linkedData.photoURL)
-    console.log("instagram in Data", instaData)
 
     return {
       linkedin: linkedData,

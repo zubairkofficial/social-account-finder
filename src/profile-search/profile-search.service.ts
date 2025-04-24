@@ -55,7 +55,6 @@ type ExtendedResponseType = ResponseType & {
 export class ProfileSearchService {
   private readonly openai: OpenAI;
   private openAIKey: string;
-  private googleAIkey: string;
   private rapidAPIkey: string;
 
   constructor(
@@ -63,7 +62,6 @@ export class ProfileSearchService {
 
   ) {
     this.openAIKey = this.configService.get<any>('OPEN_AI_KEY');
-    this.googleAIkey = this.configService.get<any>('GOOGLE_AI_KEY')
     this.rapidAPIkey = this.configService.get<any>('RAPID_API_KEY')
     this.openai = new OpenAI({
       apiKey: this.openAIKey
@@ -447,47 +445,6 @@ export class ProfileSearchService {
     }
   }
 
-  // async compareImages(imageUrl1: string, imageUrl2?: string): Promise<boolean> {
-  //   try {
-  //     // Perform face detection for both images using HTTPS URLs
-  //     const [result1] = await this.googleClient.faceDetection({ image: { source: { imageUri: imageUrl1 } } });
-  //     const [result2] = await this.googleClient.faceDetection({ image: { source: { imageUri: imageUrl2 } } });
-
-  //     const faces1 = result1.faceAnnotations;
-  //     const faces2 = result2.faceAnnotations;
-
-  //     // If no faces are detected in either image, return false
-  //     if (!faces1 || !faces2) {
-  //       return false
-  //     }
-  //     if (faces1.length === 0 || faces2.length === 0) {
-  //       console.log('No faces detected in one or both images.');
-  //       return false;
-  //     }
-
-  //     // Compare first face in each image (assuming one face per image)
-  //     const face1 = faces1[0];
-  //     const face2 = faces2[0];
-
-  //     if (!face1.detectionConfidence || !face2.detectionConfidence) {
-  //       return false
-  //     }
-
-  //     // Check if faces have similar attributes (you can adjust threshold based on feature matching)
-  //     const confidenceThreshold = 0.7; // Adjust this value based on your needs
-  //     const distance = Math.abs(face1?.detectionConfidence - face2?.detectionConfidence);
-
-  //     // If confidence levels are within threshold, consider the faces identical
-  //     if (distance < confidenceThreshold) {
-  //       return true;
-  //     }
-
-  //     return false;
-  //   } catch (error) {
-  //     console.error('Error comparing images:', error);
-  //     throw new Error('Error in image comparison API');
-  //   }
-  // }
 
   async compareImages(imageUrl1: string, imageUrl2: string): Promise<number> {
     if (!imageUrl1 || !imageUrl2) {

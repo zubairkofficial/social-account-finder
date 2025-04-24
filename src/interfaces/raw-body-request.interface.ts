@@ -1,7 +1,7 @@
-// src/interfaces/raw-body-request.interface.ts
+// // src/interfaces/raw-body-request.interface.ts
 
-import { IncomingMessage } from 'http';
+// import { IncomingMessage } from 'http';
 
-export interface RawBodyRequest<T = IncomingMessage> extends T {
-  rawBody: string;
-}
+// export interface RawBodyRequest<T = IncomingMessage> extends T {
+//   rawBody: string;
+// }

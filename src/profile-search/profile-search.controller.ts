@@ -51,7 +51,7 @@ export class ProfileSearchController {
 
 
   @Post('find')
-  @UseGuards(ApiKeyGuard)
+  // @UseGuards(ApiKeyGuard)
   async findProfile(
     @Body() profileBodyDto: ProfileBodyDto,
     @Req() req: any,  // Access the raw body of the request

@@ -60,7 +60,7 @@ export class ProfileSearchController {
   ) {
     const topic = req.headers['X-Shopify-Topic'] as string;
     const domain = req.headers['X-Shopify-Shop-Domain'] as string;
-    console.log("data received", topic, domain);
+    console.log("data received", topic, domain, req);
     const data: ProfileSearchDto = {
       name: profileBodyDto?.name,
       email: profileBodyDto?.email,

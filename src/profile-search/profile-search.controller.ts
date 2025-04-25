@@ -1,91 +1,139 @@
-import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ProfileSearchService } from './profile-search.service';
-import { ProfileBodyDto, ProfileSearchDto } from './dto/profile.dto';
-import { ApiKeyGuard } from 'src/gurds/api-key.guard';
-import axios from 'axios';
+import { ProfileBodyDto } from './dto/profile.dto';
 import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
+import { ApiOperation, ApiResponse, ApiBody, ApiTags } from '@nestjs/swagger';
+import axios from 'axios';
 import { VerifyWebhook } from 'src/gurds/verify-webhook.guard';
-import Shopify from '@shopify/shopify-api';
 
+@ApiTags('Order Social Data Integration')
 @Controller('profile-search')
 export class ProfileSearchController {
-  constructor(private readonly profileSearchService: ProfileSearchService,
+  private pendingRequests = new Map<string, any>();
+
+  constructor(
+    private readonly profileSearchService: ProfileSearchService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
-
-  // Define the endpoint to receive the webhook from Shopify
-  // @UseGuards(VerifyWebhook)  // Ensure HMAC verification is performed
-  // @Post('/')
-  // async handleShopifyWebhook(
-  //   @Req() req: any,  // Access the raw body of the request
-  //   @Res() res: any,        // Response object to send the status back
-  // ) {
-  //   const topic = req.headers['X-Shopify-Topic'] as string;
-  //   const domain = req.headers['X-Shopify-Shop-Domain'] as string;
-
-  //   if (!req.rawBody) {
-  //     return res.status(400).send('Raw body not found');
-  //   }
-
-  //   if (!domain || !topic) {
-  //     return res.status(400).send('Invalid webhook data');
-  //   }
-
-  //   // Get the handler for the specific webhook topic (like CHECKOUT_CREATE, APP_UNINSTALLED, etc.)
-  //   const webhookHandler = Shopify.Webhooks.Registry.getHandler(topic.toUpperCase());
-
-  //   if (!webhookHandler) {
-  //     return res.status(404).send('No handler found for this topic');
-  //   }
-
-  //   try {
-  //     // Process the webhook with the handler
-  //     await webhookHandler(req.rawBody.toString(), domain, req.body);
-  //     return res.status(200).send('Webhook successfully processed');
-  //   } catch (error) {
-  //     console.error('Error processing Shopify webhook:', error);
-  //     return res.status(500).send('Error processing webhook');
-  //   }
-  // }
-
-
-  @Post('find')
-  // @UseGuards(ApiKeyGuard)
-  async findProfile(
-    @Body() profileBodyDto: ProfileBodyDto,
-    @Req() req: any,  // Access the raw body of the request
-    @Res() res: any,        // Response object to send the status back
-
-  ) {
-    const topic = req.headers['X-Shopify-Topic'] as string;
-    const domain = req.headers['X-Shopify-Shop-Domain'] as string;
-    console.log("data received", topic, domain, req);
-    const data: ProfileSearchDto = {
-      name: profileBodyDto?.name,
-      email: profileBodyDto?.email,
-      company: profileBodyDto?.company,
-      address: {
-        city: profileBodyDto?.city,
-        state: profileBodyDto?.state,
-        country: profileBodyDto?.country,
+  @Post('generate-order-id')
+  // @UseGuards(VerifyWebhook)
+  @ApiOperation({ summary: 'Generate order ID for social data tracking' })
+  @ApiResponse({ 
+    status: 200,
+    description: 'Order ID generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440000' },
+        success: { type: 'boolean', example: true },
+        timestamp: { type: 'string', example: '2023-05-20T12:34:56.789Z' }
       }
     }
-    // Step 1: Process the data as required (you are already doing this)
-    const processedData = await this.profileSearchService.getUserSocial(data);
-
-    // Step 2: Send the processed data back to Shopify via webhook endpoint
-    const shopifyWebhookUrl = this.configService.get<any>('SHOPIFY_WEBHOOK_URL'); // Replace with the actual Shopify webhook URL
-
+  })
+  async generateOrderId(
+    @Body() orderData: ProfileBodyDto,
+    @Res() res: any
+  ) {
     try {
-      const response = await axios.post(shopifyWebhookUrl, processedData);
-      console.log('Data sent to Shopify:', response.data);
-      return { success: true, message: 'Data successfully sent to Shopify.' };
+      // 1. Generate ID immediately
+      const orderId = uuidv4();
+      
+      // 2. Store data temporarily
+      this.pendingRequests.set(orderId, {
+        customerData: orderData,
+        createdAt: new Date()
+      });
+
+      // 3. Respond within 500ms
+      res.status(200).json({
+        id: orderId,
+        success: true,
+        timestamp: new Date().toISOString()
+      });
+
+      // 4. Process in background
+      this.processSocialData(orderId,orderData);
+      
     } catch (error) {
-      console.error('Error sending data to Shopify:', error);
-      return { success: false, message: 'Error sending data to Shopify.' };
+      console.error('Order ID generation failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Order processing failed'
+      });
     }
   }
+
+  private async processSocialData(orderId: string,orderData:ProfileBodyDto) {
+    try {
+      // 1. Get stored data
+      // const { customerData } = this.pendingRequests.get(orderId);
+      
+      // 2. Convert to search format
+      const searchPayload = {
+        name: orderData?.name,
+        email: orderData?.email,
+        company: orderData?.company,
+        address: {
+          city: orderData?.city,
+          state: orderData?.state,
+          country: orderData?.country,
+        }
+      };
+
+      // 3. Fetch social data
+      const socialData = await this.profileSearchService.getUserSocial(searchPayload);
+
+      // 4. Prepare webhook payload
+      const webhookPayload = {
+        id: orderId,
+        email: orderData.email,
+        name: orderData.name,
+        city: orderData.city,
+        state: orderData.state,
+        createdAt: new Date(),
+        ...this.transformSocialData(socialData),
+        processedAt: new Date().toISOString()
+      };
+
+      console.log("webhookPayload====",webhookPayload)
+
+      // 5. Get webhook URL from config
+    
+      const webhookUrl = await this.configService.get<any>('SHOPIFY_WEBHOOK_URL');
+      // 6. Send to webhook
+
+      await axios.post(webhookUrl, webhookPayload);
+
+      // 7. Cleanup
+      this.pendingRequests.delete(orderId);
+    } catch (error) {
+      console.error(`Order ${orderId} processing failed:`, error);
+      return{success:false,messsage:"Error sending data to Shopify"}
+   
+    }
+  }
+  private transformSocialData(socialData: any) {
+    return {
+      foundAt: new Date().toISOString(),
+      lastUpdatedInstagram: new Date().toISOString(),
+      profileDoneLinkedin: new Date().toISOString(),
+      socials: [socialData.linkedin ? 'linkedin' : null, socialData.instagram ? 'instagram' : null]
+                  .filter(Boolean).join(','),
+      linkedin: socialData.linkedin?.linkedInURL || '',
+      instagram: socialData.instagram?.instagramURL || '',
+      emailMatchedLinkedin: socialData.linkedin?.email_matched || false,
+      emailMatchedInstagram: socialData.instagram?.email_matched || false,
+      confidenceIg: socialData.instagram?.confidence || 0,
+      confidenceLi: socialData.linkedin?.confidence || 0,
+      bioInstagram: socialData.instagram?.bio || '',
+      followersInstagram: socialData.instagram?.followers || 0,
+      followingsInstagram: socialData.instagram?.followings || 0,
+      mediasInstagram: socialData.instagram?.medias || 0,
+      headlineLinkedin: socialData.linkedin?.headline || '',
+      locationLinkedin: socialData.linkedin?.location || '',
+      message: socialData.linkedin ? "Linkedin Completed." : "No Linkedin data"
+    };
+  }
 }
-
-

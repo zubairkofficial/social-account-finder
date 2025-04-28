@@ -5,7 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { ApiOperation, ApiResponse, ApiBody, ApiTags } from '@nestjs/swagger';
 import axios from 'axios';
-import { VerifyWebhook } from 'src/gurds/verify-webhook.guard';
 
 @ApiTags('Order Social Data Integration')
 @Controller('profile-search')
@@ -96,48 +95,22 @@ export class ProfileSearchController {
       };
 
       // 3. Fetch social data
-      
-      // const socialData = await this.profileSearchService.getUserSocial(searchPayload);
+
+      const socialData = await this.profileSearchService.getUserSocial(searchPayload);
 
       // // 4. Prepare webhook payload
-      // const webhookPayload = {
-      //   id: orderId,
-      //   email: orderData.email,
-      //   name: orderData.name,
-      //   city: orderData.city,
-      //   state: orderData.state,
-      //   createdAt: new Date(),
-      //   ...this.transformSocialData(socialData),
-      //   processedAt: new Date().toISOString()
-      // };
-
       const webhookPayload = {
         id: orderId,
-        email: "john.doe@example.com",
-        name: "John Doe",
-        city: "New York",
-        state: "NY",
+        email: orderData.email,
+        name: orderData.name,
+        city: orderData.city,
+        state: orderData.state,
         createdAt: new Date(),
-        foundAt: new Date().toISOString(),
-        lastUpdatedInstagram: new Date().toISOString(),
-        profileDoneLinkedin: new Date().toISOString(),
-        socials: "linkedin,instagram",
-        linkedin: "https://linkedin.com/in/johndoe",
-        instagram: "https://instagram.com/johndoe",
-        emailMatchedLinkedin: true,
-        emailMatchedInstagram: false,
-        confidenceIg: 85,
-        confidenceLi: 92,
-        bioInstagram: "Traveler. Photographer. Dreamer.",
-        followersInstagram: 2500,
-        followingsInstagram: 300,
-        mediasInstagram: 120,
-        headlineLinkedin: "Software Engineer at TechCorp",
-        locationLinkedin: "New York, United States",
-        message: "Linkedin Completed.",
+        ...this.transformSocialData(socialData),
         processedAt: new Date().toISOString()
       };
-      
+
+     
 
       console.log("webhookPayload====", webhookPayload)
 

@@ -38,8 +38,18 @@ export class ProfileSearchController {
   ) {
     try {
 
-      console.log("data", orderData)
 
+      const customerInfo: ProfileBodyDto = {
+        email: orderData?.customer?.email,
+        name: orderData?.customer?.first_name + ' ' + orderData?.customer?.last_name,
+        city: orderData?.customer?.default_address?.city,
+        state: orderData?.customer?.default_address?.province,
+        country: orderData?.customer?.default_address?.country,
+        company: orderData?.customer?.default_address?.company,
+      }
+
+      
+      console.log("data", customerInfo)
       // 1. Generate ID immediately
       const orderId = uuidv4();
 

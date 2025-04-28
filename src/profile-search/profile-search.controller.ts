@@ -48,7 +48,7 @@ export class ProfileSearchController {
         company: orderData?.customer?.default_address?.company,
       }
 
-      
+
       console.log("data", customerInfo)
       // 1. Generate ID immediately
       const orderId = uuidv4();
@@ -67,7 +67,7 @@ export class ProfileSearchController {
       });
 
       // 4. Process in background
-      // this.processSocialData(orderId, orderData);
+      this.processSocialData(orderId, orderData);
 
     } catch (error) {
       console.error('Order ID generation failed:', error);
@@ -117,7 +117,9 @@ export class ProfileSearchController {
       const webhookUrl = await this.configService.get<any>('SHOPIFY_WEBHOOK_URL');
       // 6. Send to webhook
 
-      await axios.post(webhookUrl, webhookPayload);
+      const res = await axios.post(webhookUrl, webhookPayload);
+
+      console.log("response of webhok", res, webhookUrl)
 
       // 7. Cleanup
       this.pendingRequests.delete(orderId);

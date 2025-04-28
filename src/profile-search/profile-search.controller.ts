@@ -15,12 +15,12 @@ export class ProfileSearchController {
   constructor(
     private readonly profileSearchService: ProfileSearchService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Post('generate-order-id')
   // @UseGuards(VerifyWebhook)
   @ApiOperation({ summary: 'Generate order ID for social data tracking' })
-  @ApiResponse({ 
+  @ApiResponse({
     status: 200,
     description: 'Order ID generated successfully',
     schema: {
@@ -37,9 +37,12 @@ export class ProfileSearchController {
     @Res() res: any
   ) {
     try {
+
+      console.log("data", orderData)
+
       // 1. Generate ID immediately
       const orderId = uuidv4();
-      
+
       // 2. Store data temporarily
       this.pendingRequests.set(orderId, {
         customerData: orderData,
@@ -54,8 +57,8 @@ export class ProfileSearchController {
       });
 
       // 4. Process in background
-      this.processSocialData(orderId,orderData);
-      
+      this.processSocialData(orderId, orderData);
+
     } catch (error) {
       console.error('Order ID generation failed:', error);
       res.status(500).json({
@@ -65,11 +68,11 @@ export class ProfileSearchController {
     }
   }
 
-  private async processSocialData(orderId: string,orderData:ProfileBodyDto) {
+  private async processSocialData(orderId: string, orderData: ProfileBodyDto) {
     try {
       // 1. Get stored data
       // const { customerData } = this.pendingRequests.get(orderId);
-      
+
       // 2. Convert to search format
       const searchPayload = {
         name: orderData?.name,
@@ -97,10 +100,10 @@ export class ProfileSearchController {
         processedAt: new Date().toISOString()
       };
 
-      console.log("webhookPayload====",webhookPayload)
+      console.log("webhookPayload====", webhookPayload)
 
       // 5. Get webhook URL from config
-    
+
       const webhookUrl = await this.configService.get<any>('SHOPIFY_WEBHOOK_URL');
       // 6. Send to webhook
 
@@ -110,8 +113,8 @@ export class ProfileSearchController {
       this.pendingRequests.delete(orderId);
     } catch (error) {
       console.error(`Order ${orderId} processing failed:`, error);
-      return{success:false,messsage:"Error sending data to Shopify"}
-   
+      return { success: false, messsage: "Error sending data to Shopify" }
+
     }
   }
   private transformSocialData(socialData: any) {
@@ -120,7 +123,7 @@ export class ProfileSearchController {
       lastUpdatedInstagram: new Date().toISOString(),
       profileDoneLinkedin: new Date().toISOString(),
       socials: [socialData.linkedin ? 'linkedin' : null, socialData.instagram ? 'instagram' : null]
-                  .filter(Boolean).join(','),
+        .filter(Boolean).join(','),
       linkedin: socialData.linkedin?.linkedInURL || '',
       instagram: socialData.instagram?.instagramURL || '',
       emailMatchedLinkedin: socialData.linkedin?.email_matched || false,

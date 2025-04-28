@@ -408,7 +408,7 @@ export class ProfileSearchService {
         related_keywords: `${personData.address?.city}, ${personData.address?.state}, ${personData.address?.country}, ${personData.company}, ${personData.email}`,
       },
       headers: {
-        'x-rapidapi-key': '50c23a771dmsh5a551b9a3529d2bp1aa0bdjsn834acd34db7d',
+        'x-rapidapi-key': this.rapidAPIkey,
         'x-rapidapi-host': 'google-search74.p.rapidapi.com',
       },
     };

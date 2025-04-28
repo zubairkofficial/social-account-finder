@@ -33,7 +33,7 @@ export class ProfileSearchController {
     }
   })
   async generateOrderId(
-    @Body() orderData: ProfileBodyDto,
+    @Body() orderData: any,
     @Res() res: any
   ) {
     try {
@@ -57,7 +57,7 @@ export class ProfileSearchController {
       });
 
       // 4. Process in background
-      this.processSocialData(orderId, orderData);
+      // this.processSocialData(orderId, orderData);
 
     } catch (error) {
       console.error('Order ID generation failed:', error);
